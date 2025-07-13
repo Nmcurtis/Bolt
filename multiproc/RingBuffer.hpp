@@ -32,12 +32,12 @@ private:
     };
 
 private:
-    RingBuffer(SharedMemoryRingBuffer* buffer, size_t shm_size_bytes, int shm_file_descriptor);
+    RingBuffer(Buffer* buffer, size_t shm_size_bytes, int shm_file_descriptor);
 
     void detach();
 
 private:
-    SharedMemoryRingBuffer* buffer_ = nullptr;
+    Buffer* buffer_ = nullptr;
     SharedMemoryState state_;
 };
 

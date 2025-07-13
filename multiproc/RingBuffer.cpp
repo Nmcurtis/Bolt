@@ -55,7 +55,7 @@ RingBuffer RingBuffer::create(std::string_view shm_name) {
     //
     // Without this call to ftruncate, mmap would fail because the shared memory region
     // has a size of zero by default
-    const size_t shm_size_bytes = sizeof(SharedMemoryRingBuffer);
+    const size_t shm_size_bytes = sizeof(Buffer);
 
     if (ftruncate(shm_file_descriptor, shm_size_bytes) == FTRUNCATE_FAILURE_INDICATOR) {
         close(shm_file_descriptor);
@@ -71,11 +71,11 @@ RingBuffer RingBuffer::create(std::string_view shm_name) {
         throw std::runtime_error("Call to mmap failed when creating RingBuffer");
     }
 
-    // For safety, memset the mapped region to zero
-    std::memset(buffer_address, 0, shm_size_bytes);
+    // For safety, placement new the buffer
+    new (buffer_address) Buffer{};
 
     return RingBuffer(
-        static_cast<SharedMemoryRingBuffer*>(buffer_address),
+        static_cast<Buffer*>(buffer_address),
         shm_size_bytes, shm_file_descriptor);
 }
 
@@ -88,7 +88,7 @@ RingBuffer RingBuffer::attach(std::string_view shm_name) {
     }
 
     // Map the shared memory into this process's address space
-    const size_t shm_size_bytes = sizeof(SharedMemoryRingBuffer);
+    const size_t shm_size_bytes = sizeof(Buffer);
 
     void* buffer_address = mmap(
         nullptr, shm_size_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, shm_file_descriptor, MMAP_OFFSET);
@@ -99,13 +99,13 @@ RingBuffer RingBuffer::attach(std::string_view shm_name) {
     }
 
     return RingBuffer(
-        static_cast<SharedMemoryRingBuffer*>(buffer_address),
+        static_cast<Buffer*>(buffer_address),
         shm_size_bytes,
         shm_file_descriptor
     );
 }
 
-RingBuffer::RingBuffer(SharedMemoryRingBuffer* buffer, size_t shm_size_bytes, int shm_file_descriptor)
+RingBuffer::RingBuffer(Buffer* buffer, size_t shm_size_bytes, int shm_file_descriptor)
     : buffer_{buffer}
     , state_{.shm_size_bytes = shm_size_bytes, .shm_file_descriptor = shm_file_descriptor} {}
 

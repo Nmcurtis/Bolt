@@ -29,20 +29,10 @@ struct alignas(CACHE_LINE_SIZE_BYTES) ProducerState {
 static_assert(sizeof(ProducerState) == CACHE_LINE_SIZE_BYTES, "ProducerState must be 64 bytes");
 
 
-class alignas(CACHE_LINE_SIZE_BYTES) SharedMemoryRingBuffer {
-public:
+struct alignas(CACHE_LINE_SIZE_BYTES) Buffer {
     static constexpr std::uint64_t MAX_CONSUMERS = 64;
     static constexpr std::uint64_t BUFFER_SIZE_BYTES = 1024;
 
-    SharedMemoryRingBuffer() = default;
-
-    SharedMemoryRingBuffer(const SharedMemoryRingBuffer&) = delete;
-    SharedMemoryRingBuffer(SharedMemoryRingBuffer&&) = delete;
-
-    SharedMemoryRingBuffer& operator=(const SharedMemoryRingBuffer&) = delete;
-    SharedMemoryRingBuffer& operator=(SharedMemoryRingBuffer&&) = delete;
-
-private:
     ProducerState state_;
     ConsumerState consumers_[MAX_CONSUMERS];
     std::byte raw_buffer_[BUFFER_SIZE_BYTES];

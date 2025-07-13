@@ -1,4 +1,4 @@
-#include "RingBuffer.hpp"
+#include "SharedMemoryRingBuffer.hpp"
 
 #include <cstring>
 #include <fcntl.h>
@@ -16,11 +16,11 @@ constexpr int SHM_PERMISSIONS = 0666;
 constexpr int FTRUNCATE_FAILURE_INDICATOR = -1;
 constexpr off_t MMAP_OFFSET = 0;
 
-RingBuffer::~RingBuffer() noexcept {
+SharedMemoryRingBuffer::~SharedMemoryRingBuffer() noexcept {
     detach();
 }
 
-RingBuffer::RingBuffer(RingBuffer&& other) noexcept
+SharedMemoryRingBuffer::SharedMemoryRingBuffer(SharedMemoryRingBuffer&& other) noexcept
     : buffer_{other.buffer_}
     , state_{other.state_} {
 
@@ -28,7 +28,7 @@ RingBuffer::RingBuffer(RingBuffer&& other) noexcept
     other.state_ = SharedMemoryState{};
 }
 
-RingBuffer& RingBuffer::operator=(RingBuffer&& other) noexcept {
+SharedMemoryRingBuffer& SharedMemoryRingBuffer::operator=(SharedMemoryRingBuffer&& other) noexcept {
     if (this != &other) {
         detach();
 
@@ -43,23 +43,23 @@ RingBuffer& RingBuffer::operator=(RingBuffer&& other) noexcept {
     return *this;
 }
 
-RingBuffer RingBuffer::create(std::string_view shm_name) {
+SharedMemoryRingBuffer SharedMemoryRingBuffer::create(std::string_view shm_name) {
     // Create or open a shared memory region with read/write permissions
     int shm_file_descriptor = shm_open(shm_name.data(), O_CREAT | O_RDWR, SHM_PERMISSIONS);
 
     if (shm_file_descriptor == SharedMemoryState::INVALID_FILE_DESCRIPTOR) {
-        throw std::runtime_error("Call to shm_open failed when creating RingBuffer");
+        throw std::runtime_error("Call to shm_open failed when creating SharedMemoryRingBuffer");
     }
 
     // Resize the shared memory region to the size (in bytes) of the buffer
     //
     // Without this call to ftruncate, mmap would fail because the shared memory region
     // has a size of zero by default
-    const size_t shm_size_bytes = sizeof(Buffer);
+    const size_t shm_size_bytes = sizeof(RingBuffer);
 
     if (ftruncate(shm_file_descriptor, shm_size_bytes) == FTRUNCATE_FAILURE_INDICATOR) {
         close(shm_file_descriptor);
-        throw std::runtime_error("Call to ftruncate failed when creating RingBuffer");
+        throw std::runtime_error("Call to ftruncate failed when creating SharedMemoryRingBuffer");
     }
 
     // Map the shared memory region to this process's address space
@@ -68,48 +68,48 @@ RingBuffer RingBuffer::create(std::string_view shm_name) {
 
     if (buffer_address == MAP_FAILED) {
         close(shm_file_descriptor);
-        throw std::runtime_error("Call to mmap failed when creating RingBuffer");
+        throw std::runtime_error("Call to mmap failed when creating SharedMemoryRingBuffer");
     }
 
     // For safety, placement new the buffer
-    new (buffer_address) Buffer{};
+    new (buffer_address) RingBuffer{};
 
-    return RingBuffer(
-        static_cast<Buffer*>(buffer_address),
+    return SharedMemoryRingBuffer(
+        static_cast<RingBuffer*>(buffer_address),
         shm_size_bytes, shm_file_descriptor);
 }
 
-RingBuffer RingBuffer::attach(std::string_view shm_name) {
+SharedMemoryRingBuffer SharedMemoryRingBuffer::attach(std::string_view shm_name) {
     // Open an existing shared memory region
     int shm_file_descriptor = shm_open(shm_name.data(), O_RDWR, SHM_PERMISSIONS);
 
     if (shm_file_descriptor == SharedMemoryState::INVALID_FILE_DESCRIPTOR) {
-        throw std::runtime_error("shm_open failed when attaching to RingBuffer");
+        throw std::runtime_error("shm_open failed when attaching to SharedMemoryRingBuffer");
     }
 
     // Map the shared memory into this process's address space
-    const size_t shm_size_bytes = sizeof(Buffer);
+    const size_t shm_size_bytes = sizeof(RingBuffer);
 
     void* buffer_address = mmap(
         nullptr, shm_size_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, shm_file_descriptor, MMAP_OFFSET);
 
     if (buffer_address == MAP_FAILED) {
         close(shm_file_descriptor);
-        throw std::runtime_error("mmap failed when attaching to RingBuffer");
+        throw std::runtime_error("mmap failed when attaching to SharedMemoryRingBuffer");
     }
 
-    return RingBuffer(
-        static_cast<Buffer*>(buffer_address),
+    return SharedMemoryRingBuffer(
+        static_cast<RingBuffer*>(buffer_address),
         shm_size_bytes,
         shm_file_descriptor
     );
 }
 
-RingBuffer::RingBuffer(Buffer* buffer, size_t shm_size_bytes, int shm_file_descriptor)
+SharedMemoryRingBuffer::SharedMemoryRingBuffer(RingBuffer* buffer, size_t shm_size_bytes, int shm_file_descriptor)
     : buffer_{buffer}
     , state_{.shm_size_bytes = shm_size_bytes, .shm_file_descriptor = shm_file_descriptor} {}
 
-void RingBuffer::detach() {
+void SharedMemoryRingBuffer::detach() {
     if (buffer_ != nullptr) {
         // Unmap buffer memory from this process
         munmap(static_cast<void*>(buffer_), state_.shm_size_bytes);

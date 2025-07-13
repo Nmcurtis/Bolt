@@ -18,24 +18,21 @@ struct alignas(CACHE_LINE_SIZE_BYTES) ConsumerState {
     std::byte padding[CACHE_LINE_SIZE_BYTES - sizeof(AtomicIndex_t)]; // Pad to prevent false sharing
 };
 
-static_assert(sizeof(ConsumerState) == CACHE_LINE_SIZE_BYTES, "ConsumerState must be 64 bytes");
-
-
 struct alignas(CACHE_LINE_SIZE_BYTES) ProducerState {
-    AtomicIndex_t write_index = INITIAL_INDEX;
+    AtomicIndex_t absolute_write_index = INITIAL_INDEX;
     std::byte padding[CACHE_LINE_SIZE_BYTES - sizeof(AtomicIndex_t)]; // Pad to prevent false sharing
 };
 
-static_assert(sizeof(ProducerState) == CACHE_LINE_SIZE_BYTES, "ProducerState must be 64 bytes");
-
-
-struct alignas(CACHE_LINE_SIZE_BYTES) Buffer {
+struct alignas(CACHE_LINE_SIZE_BYTES) RingBuffer {
     static constexpr std::uint64_t MAX_CONSUMERS = 64;
     static constexpr std::uint64_t BUFFER_SIZE_BYTES = 1024;
 
     ProducerState state_;
     ConsumerState consumers_[MAX_CONSUMERS];
-    std::byte raw_buffer_[BUFFER_SIZE_BYTES];
+    alignas(std::max_align_t) std::byte raw_buffer_[BUFFER_SIZE_BYTES];
 };
+
+static_assert(sizeof(ConsumerState) == CACHE_LINE_SIZE_BYTES, "ConsumerState must be 64 bytes");
+static_assert(sizeof(ProducerState) == CACHE_LINE_SIZE_BYTES, "ProducerState must be 64 bytes");
 
 } // namespace multiproc

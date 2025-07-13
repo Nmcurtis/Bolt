@@ -1,7 +1,6 @@
 # Create a static library from the multiproc source
 add_library(multiproc STATIC
     SharedMemoryRingBuffer.cpp
-    Producer.cpp
 )
 
 # Specify the include directory for consumers of the library

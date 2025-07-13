@@ -13,8 +13,11 @@ namespace multiproc {
 // This allows any process to read/write the shared memory
 constexpr int SHM_PERMISSIONS = 0666;
 
-constexpr int FTRUNCATE_FAILURE_INDICATOR = -1;
 constexpr off_t MMAP_OFFSET = 0;
+
+constexpr int FTRUNCATE_FAILURE_INDICATOR = -1;
+constexpr int SHM_UNLINK_SUCCESS_INDICATOR = 0;
+
 
 SharedMemoryRingBuffer::~SharedMemoryRingBuffer() noexcept {
     detach();
@@ -48,7 +51,7 @@ SharedMemoryRingBuffer SharedMemoryRingBuffer::create(std::string_view shm_name)
     int shm_file_descriptor = shm_open(shm_name.data(), O_CREAT | O_RDWR, SHM_PERMISSIONS);
 
     if (shm_file_descriptor == SharedMemoryState::INVALID_FILE_DESCRIPTOR) {
-        throw std::runtime_error("Call to shm_open failed when creating SharedMemoryRingBuffer");
+        throw std::runtime_error("Call to shm_open failed when creating shared memory");
     }
 
     // Resize the shared memory region to the size (in bytes) of the buffer
@@ -59,7 +62,7 @@ SharedMemoryRingBuffer SharedMemoryRingBuffer::create(std::string_view shm_name)
 
     if (ftruncate(shm_file_descriptor, shm_size_bytes) == FTRUNCATE_FAILURE_INDICATOR) {
         close(shm_file_descriptor);
-        throw std::runtime_error("Call to ftruncate failed when creating SharedMemoryRingBuffer");
+        throw std::runtime_error("Call to ftruncate failed when creating shared memory");
     }
 
     // Map the shared memory region to this process's address space
@@ -68,7 +71,7 @@ SharedMemoryRingBuffer SharedMemoryRingBuffer::create(std::string_view shm_name)
 
     if (buffer_address == MAP_FAILED) {
         close(shm_file_descriptor);
-        throw std::runtime_error("Call to mmap failed when creating SharedMemoryRingBuffer");
+        throw std::runtime_error("Call to mmap failed when creating shared memory");
     }
 
     // For safety, placement new the buffer
@@ -84,7 +87,7 @@ SharedMemoryRingBuffer SharedMemoryRingBuffer::attach(std::string_view shm_name)
     int shm_file_descriptor = shm_open(shm_name.data(), O_RDWR, SHM_PERMISSIONS);
 
     if (shm_file_descriptor == SharedMemoryState::INVALID_FILE_DESCRIPTOR) {
-        throw std::runtime_error("shm_open failed when attaching to SharedMemoryRingBuffer");
+        throw std::runtime_error("shm_open failed when attaching to shared memory");
     }
 
     // Map the shared memory into this process's address space
@@ -95,7 +98,7 @@ SharedMemoryRingBuffer SharedMemoryRingBuffer::attach(std::string_view shm_name)
 
     if (buffer_address == MAP_FAILED) {
         close(shm_file_descriptor);
-        throw std::runtime_error("mmap failed when attaching to SharedMemoryRingBuffer");
+        throw std::runtime_error("mmap failed when attaching to shared memory");
     }
 
     return SharedMemoryRingBuffer(
@@ -103,6 +106,12 @@ SharedMemoryRingBuffer SharedMemoryRingBuffer::attach(std::string_view shm_name)
         shm_size_bytes,
         shm_file_descriptor
     );
+}
+
+void SharedMemoryRingBuffer::destroy(std::string_view shm_name) {
+    if (shm_unlink(shm_name.data()) != SHM_UNLINK_SUCCESS_INDICATOR) {
+        throw std::runtime_error("shm_unlink failed when destroying shared memory");
+    }
 }
 
 SharedMemoryRingBuffer::SharedMemoryRingBuffer(RingBuffer* buffer, size_t shm_size_bytes, int shm_file_descriptor)

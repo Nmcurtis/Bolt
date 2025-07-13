@@ -42,6 +42,7 @@ include(CTest)
 enable_testing()
 
 # Add modules
+add_subdirectory(apps)
 add_subdirectory(multiproc)
 
 install(DIRECTORY "cmake/modules" DESTINATION "cmake")

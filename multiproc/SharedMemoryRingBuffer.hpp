@@ -24,7 +24,10 @@ public:
     size_t size_in_bytes() const { return state_.shm_size_bytes; }
 
     [[nodiscard]] static SharedMemoryRingBuffer create(std::string_view shm_name);
+
     [[nodiscard]] static SharedMemoryRingBuffer attach(std::string_view shm_name);
+    
+    static void destroy(std::string_view shm_name);
 
 private:
     struct SharedMemoryState {
